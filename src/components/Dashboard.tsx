@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Target, Maximize, Sliders, Activity, Info, Eye, EyeOff, Layers, Ruler } from 'lucide-react';
 import Joystick from './Joystick';
+import earthImg from '../assets/earth.png';
+import proximaImg from '../assets/proxima_b.png';
+import trappistImg from '../assets/trappist_1e.png';
+import keplerImg from '../assets/kepler_186f.png';
 
 interface DashboardProps {
   distance: number;
@@ -46,7 +50,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   
   // Quality Calculation (0 to 1)
   const inFocus = distance >= currentFocalStart;
-  const focusFactor = inFocus ? Math.min(1.0, 0.8 + ((distance - currentFocalStart) / (900 - currentFocalStart)) * 0.2) : 0;
+  const focusFactor = inFocus ? Math.min(1.0, 0.8 + ((distance - currentFocalStart) / (1500 - currentFocalStart)) * 0.2) : 0;
   const satFactor = (satellites / 100); // 1 = 1%, 100 = 100%
   const offsetErr = Math.sqrt(lateralOffset.x * lateralOffset.x + lateralOffset.y * lateralOffset.y);
   const alignFactor = Math.max(0, 1.0 - offsetErr); 
@@ -131,8 +135,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
             <input 
               type="range" 
-              min="500" 
-              max="900" 
+              min="50" 
+              max="1500" 
               value={distance} 
               onChange={(e) => setDistance(parseInt(e.target.value))} 
             />
@@ -181,11 +185,11 @@ const Dashboard: React.FC<DashboardProps> = ({
             }}>
               <div style={{
                 width: '100px', height: '100px', borderRadius: '50%',
-                background: inversionMode ? 'url(/earth.png)' :
-                            target === 'proxima-b' ? 'url(/proxima_b.png)' : 
-                            target === 'trappist-1e' ? 'url(/trappist_1e.png)' : 
+                background: inversionMode ? `url(${earthImg})` :
+                            target === 'proxima-b' ? `url(${proximaImg})` : 
+                            target === 'trappist-1e' ? `url(${trappistImg})` : 
                             target === 'sirius' ? 'url(https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Sirius_A_and_B_artwork.jpg/320px-Sirius_A_and_B_artwork.jpg)' :
-                            'url(/kepler_186f.png)',
+                            `url(${keplerImg})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 boxShadow: `0 0 ${20 * quality}px rgba(255,255,255,${quality * 0.5})`,

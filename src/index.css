@@ -104,7 +104,7 @@ h1, h2, h3, h4, h5, h6 {
 .controls-sidebar {
   position: absolute;
   left: 24px;
-  top: 100px;
+  top: 150px;
   width: 340px;
   max-height: calc(100vh - 120px);
   overflow-y: auto;
@@ -118,7 +118,7 @@ h1, h2, h3, h4, h5, h6 {
 .right-sidebar {
   position: absolute;
   right: 24px;
-  top: 100px;
+  top: 150px;
   width: 320px;
   max-height: calc(100vh - 120px);
   overflow-y: auto;
