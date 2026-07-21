@@ -5,6 +5,7 @@ import earthImg from '../assets/earth.png';
 import proximaImg from '../assets/proxima_b.png';
 import trappistImg from '../assets/trappist_1e.png';
 import keplerImg from '../assets/kepler_186f.png';
+import siriusImg from '../assets/sirius_planet.png';
 
 interface DashboardProps {
   distance: number;
@@ -202,7 +203,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       backgroundImage: inversionMode ? `url(${earthImg})` :
                                   target === 'proxima-b' ? `url(${proximaImg})` : 
                                   target === 'trappist-1e' ? `url(${trappistImg})` : 
-                                  target === 'sirius' ? 'url(https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Sirius_A_and_B_artwork.jpg/320px-Sirius_A_and_B_artwork.jpg)' :
+                                  target === 'sirius' ? `url(${siriusImg})` :
                                   `url(${keplerImg})`,
                       backgroundSize: 'cover',
                       backgroundPosition: 'center',
