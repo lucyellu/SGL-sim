@@ -78,7 +78,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .dashboard-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: flex-start;
   pointer-events: auto;
 }
@@ -103,13 +103,30 @@ h1, h2, h3, h4, h5, h6 {
 
 .controls-sidebar {
   position: absolute;
-  right: 24px;
+  left: 24px;
   top: 100px;
-  width: 320px;
+  width: 340px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
   pointer-events: auto;
+  padding-right: 8px; /* For scrollbar */
+}
+
+.right-sidebar {
+  position: absolute;
+  right: 24px;
+  top: 100px;
+  width: 320px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  pointer-events: auto;
+  padding-left: 8px;
 }
 
 .control-group {
@@ -206,10 +223,7 @@ input[type=range]::-webkit-slider-runnable-track {
 }
 
 .telemetry-panel {
-  position: absolute;
-  bottom: 24px;
-  left: 24px;
-  width: 300px;
+  width: 100%;
   padding: 16px;
   pointer-events: auto;
 }

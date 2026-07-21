@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Target, Maximize, Sliders, Activity, Info, Eye, EyeOff, Layers, Ruler } from 'lucide-react';
 import Joystick from './Joystick';
 
@@ -15,21 +15,38 @@ interface DashboardProps {
   setSatellites: (s: number) => void;
   showLightYears: boolean;
   setShowLightYears: (s: boolean) => void;
+  inversionMode: boolean;
+  setInversionMode: (m: boolean) => void;
+  cameraMode: 'auto' | 'birds-eye';
+  setCameraMode: (m: 'auto' | 'birds-eye') => void;
 }
 
 const targets = [
   { id: 'proxima-b', name: 'Proxima Centauri b', dist: '4.24 ly' },
+  { id: 'sirius', name: 'Sirius A', dist: '8.6 ly' },
   { id: 'trappist-1e', name: 'TRAPPIST-1e', dist: '39.6 ly' },
   { id: 'kepler-186f', name: 'Kepler-186f', dist: '582 ly' }
 ];
 
 const Dashboard: React.FC<DashboardProps> = ({
-  distance, setDistance, lateralOffset, setLateralOffset, target, setTarget, trueScale, setTrueScale, satellites, setSatellites, showLightYears, setShowLightYears
+  distance, setDistance, lateralOffset, setLateralOffset, target, setTarget, trueScale, setTrueScale, satellites, setSatellites, showLightYears, setShowLightYears, inversionMode, setInversionMode, cameraMode, setCameraMode
 }) => {
   
+  const AU_PER_LY = 63241;
+  // If inversion mode, the target star is the lens. Proxima's focal start is ~95 AU. Sirius is ~760 AU. Trappist is ~85 AU. Kepler is ~550 AU.
+  const alienFocalStart = target === 'proxima-b' ? 95 : target === 'sirius' ? 760 : target === 'trappist-1e' ? 85 : 550;
+  const currentFocalStart = inversionMode ? alienFocalStart : 542;
+  
+  // Auto-snap distance so image is at least partially visible when switching targets
+  useEffect(() => {
+    if (distance < currentFocalStart) {
+      setDistance(currentFocalStart + 20); // Push just past the focal line to resolve the image
+    }
+  }, [target, inversionMode, currentFocalStart, distance, setDistance]);
+  
   // Quality Calculation (0 to 1)
-  const inFocus = distance >= 542;
-  const focusFactor = inFocus ? Math.min(1.0, 0.8 + ((distance - 542) / (900 - 542)) * 0.2) : 0;
+  const inFocus = distance >= currentFocalStart;
+  const focusFactor = inFocus ? Math.min(1.0, 0.8 + ((distance - currentFocalStart) / (900 - currentFocalStart)) * 0.2) : 0;
   const satFactor = (satellites / 100); // 1 = 1%, 100 = 100%
   const offsetErr = Math.sqrt(lateralOffset.x * lateralOffset.x + lateralOffset.y * lateralOffset.y);
   const alignFactor = Math.max(0, 1.0 - offsetErr); 
@@ -41,7 +58,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   
   const [showInfo, setShowInfo] = useState(false);
 
-  const AU_PER_LY = 63241;
   const displayDist = showLightYears ? `${(distance / AU_PER_LY).toFixed(4)} ly` : `${distance} AU`;
   const formatDist = (distLy: number) => showLightYears ? `${distLy} ly` : `${Math.round(distLy * AU_PER_LY).toLocaleString()} AU`;
 
@@ -67,6 +83,20 @@ const Dashboard: React.FC<DashboardProps> = ({
               <Ruler size={14} /> {showLightYears ? 'LY' : 'AU'}
             </button>
           </h3>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+            <button 
+              onClick={() => setInversionMode(!inversionMode)}
+              style={{ flex: 1, padding: '4px', fontSize: '0.75rem', background: inversionMode ? 'var(--accent)' : 'var(--panel-bg)', color: inversionMode ? '#000' : 'var(--text)', border: '1px solid var(--panel-border)', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              {inversionMode ? 'Alien Lens Mode' : 'Earth Lens Mode'}
+            </button>
+            <button 
+              onClick={() => setCameraMode(cameraMode === 'auto' ? 'birds-eye' : 'auto')}
+              style={{ flex: 1, padding: '4px', fontSize: '0.75rem', background: cameraMode === 'birds-eye' ? 'var(--accent)' : 'var(--panel-bg)', color: cameraMode === 'birds-eye' ? '#000' : 'var(--text)', border: '1px solid var(--panel-border)', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              Bird's Eye View
+            </button>
+          </div>
           <div className="target-selector">
             {targets.map(t => (
               <button 
@@ -107,7 +137,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               onChange={(e) => setDistance(parseInt(e.target.value))} 
             />
             <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-              Focal line starts at {showLightYears ? `${(542 / AU_PER_LY).toFixed(4)} ly` : '542 AU'}.
+              Focal line starts at {showLightYears ? `${(currentFocalStart / AU_PER_LY).toFixed(4)} ly` : `${currentFocalStart} AU`}.
             </span>
           </div>
 
@@ -129,17 +159,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        <div className="glass-panel control-group">
-          <h3><Maximize size={18} /> Satellite Alignment</h3>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>
-            Lateral scan of the image plane. Keep perfectly centered (0,0) to perfectly reconstruct the image.
-          </p>
-          <Joystick onChange={setLateralOffset} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontFamily: 'monospace' }}>
-            <span style={{ color: Math.abs(lateralOffset.x) > 0.5 ? '#ef4444' : 'inherit' }}>X: {lateralOffset.x.toFixed(2)}m</span>
-            <span style={{ color: Math.abs(lateralOffset.y) > 0.5 ? '#ef4444' : 'inherit' }}>Y: {lateralOffset.y.toFixed(2)}m</span>
-          </div>
-        </div>
 
         <div className="glass-panel control-group" style={{ paddingBottom: '24px' }}>
           <h3 style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -162,8 +181,10 @@ const Dashboard: React.FC<DashboardProps> = ({
             }}>
               <div style={{
                 width: '100px', height: '100px', borderRadius: '50%',
-                background: target === 'proxima-b' ? 'url(/proxima_b.png)' : 
+                background: inversionMode ? 'url(/earth.png)' :
+                            target === 'proxima-b' ? 'url(/proxima_b.png)' : 
                             target === 'trappist-1e' ? 'url(/trappist_1e.png)' : 
+                            target === 'sirius' ? 'url(https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Sirius_A_and_B_artwork.jpg/320px-Sirius_A_and_B_artwork.jpg)' :
                             'url(/kepler_186f.png)',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
@@ -184,43 +205,70 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
           
           <div style={{ marginTop: '12px', fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-            <strong>Expected Planetary Profile:</strong><br/>
-            {target === 'proxima-b' && "Likely rocky. Potentially tidally locked (an 'eyeball planet' with a molten day-side and frozen night-side)."}
-            {target === 'trappist-1e' && "Rocky world in the habitable zone. Highly likely to contain a liquid water ocean and thick Earth-like atmosphere."}
-            {target === 'kepler-186f' && "Earth-sized rocky planet. Orbits a red dwarf, meaning any potential plant life would likely appear red or black to absorb the dim light."}
+            {inversionMode ? (
+              <>
+                <strong>Alien SGL Lore:</strong><br/>
+                Because their stars have different masses and radii, the focal line starts at a different distance! 
+                {target === 'proxima-b' && ' Proxima is a small red dwarf, so its focal line starts at just ~95 AU! Much easier for them to build this telescope.'}
+                {target === 'trappist-1e' && ' TRAPPIST-1 is tiny, so its focal line starts at just ~85 AU!'}
+                {target === 'sirius' && ' Sirius A is a massive, bright star. Its focal line starts much further out at ~760 AU!'}
+              </>
+            ) : (
+              <>
+                <strong>Expected Planetary Profile:</strong><br/>
+                {target === 'proxima-b' && "Likely rocky. Potentially tidally locked (an 'eyeball planet' with a molten day-side and frozen night-side)."}
+                {target === 'trappist-1e' && "Rocky world in the habitable zone. Highly likely to contain a liquid water ocean and thick Earth-like atmosphere."}
+                {target === 'sirius' && "Sirius A is a massive young star. It has no known exoplanets, but we would look for young, molten protoplanets."}
+                {target === 'kepler-186f' && "Earth-sized rocky planet. Orbits a red dwarf, meaning any potential plant life would likely appear red or black to absorb the dim light."}
+              </>
+            )}
           </div>
         </div>
       </aside>
 
-      <div className="telemetry-panel glass-panel glass-panel-accent">
-        <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', fontSize: '1rem', borderBottom: '1px solid var(--panel-border)', paddingBottom: '8px' }}>
-          <Activity size={18} /> Telemetry
-        </h3>
-        
-        <div className="telemetry-item">
-          <span className="telemetry-label">Status</span>
-          <span className="telemetry-value telemetry-good">{inFocus ? 'ONLINE' : 'SUB-FOCAL'}</span>
+      <aside className="right-sidebar">
+        <div className="glass-panel control-group">
+          <h3><Maximize size={18} /> Focal Plane Scanning</h3>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
+            The telescope must physically scan the 1-meter wide focal plane pixel-by-pixel. Use this joystick to perfectly center the telescope on the X/Y focal axis (0,0). Even slight drift will blur the reconstruction.
+          </p>
+          <Joystick onChange={setLateralOffset} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontFamily: 'monospace' }}>
+            <span style={{ color: Math.abs(lateralOffset.x) > 0.5 ? '#ef4444' : 'inherit' }}>X Drift: {lateralOffset.x.toFixed(2)}m</span>
+            <span style={{ color: Math.abs(lateralOffset.y) > 0.5 ? '#ef4444' : 'inherit' }}>Y Drift: {lateralOffset.y.toFixed(2)}m</span>
+          </div>
         </div>
-        <div className="telemetry-item">
-          <span className="telemetry-label">Target</span>
-          <span className="telemetry-value">{activeTarget?.name}</span>
+
+        <div className="telemetry-panel glass-panel glass-panel-accent">
+          <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', fontSize: '1rem', borderBottom: '1px solid var(--panel-border)', paddingBottom: '8px' }}>
+            <Activity size={18} /> Telemetry
+          </h3>
+          
+          <div className="telemetry-item">
+            <span className="telemetry-label">Status</span>
+            <span className="telemetry-value telemetry-good">{inFocus ? 'ONLINE' : 'SUB-FOCAL'}</span>
+          </div>
+          <div className="telemetry-item">
+            <span className="telemetry-label">Target</span>
+            <span className="telemetry-value">{activeTarget?.name}</span>
+          </div>
+          <div className="telemetry-item">
+            <span className="telemetry-label">Distance from {inversionMode ? 'Target Star' : 'Sun'}</span>
+            <span className="telemetry-value">{displayDist}</span>
+          </div>
+          <div className="telemetry-item">
+            <span className="telemetry-label">Image Quality</span>
+            <span className={`telemetry-value ${quality > 0.5 ? 'telemetry-good' : 'telemetry-warn'}`}>{qualityPercent}%</span>
+          </div>
+          <div className="telemetry-item" style={{ marginTop: '16px', paddingTop: '8px', borderTop: '1px dashed var(--panel-border)' }}>
+            <span className="telemetry-label">Magnification</span>
+            <span className="telemetry-value" style={{ color: 'var(--accent)' }}>~100 Billion x</span>
+          </div>
         </div>
-        <div className="telemetry-item">
-          <span className="telemetry-label">Distance from Sun</span>
-          <span className="telemetry-value">{displayDist}</span>
-        </div>
-        <div className="telemetry-item">
-          <span className="telemetry-label">Image Quality</span>
-          <span className={`telemetry-value ${quality > 0.5 ? 'telemetry-good' : 'telemetry-warn'}`}>{qualityPercent}%</span>
-        </div>
-        <div className="telemetry-item" style={{ marginTop: '16px', paddingTop: '8px', borderTop: '1px dashed var(--panel-border)' }}>
-          <span className="telemetry-label">Magnification</span>
-          <span className="telemetry-value" style={{ color: 'var(--accent)' }}>~100 Billion x</span>
-        </div>
-      </div>
+      </aside>
       
       {/* Floating Info Toggle */}
-      <div style={{ position: 'absolute', bottom: '24px', right: '360px', pointerEvents: 'auto' }}>
+      <div style={{ position: 'absolute', bottom: '24px', right: '340px', pointerEvents: 'auto' }}>
         <button 
           onClick={() => setShowInfo(!showInfo)}
           style={{ background: 'var(--panel-bg)', border: '1px solid var(--panel-border)', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.5)' }}

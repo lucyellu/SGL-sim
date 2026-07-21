@@ -11,6 +11,8 @@ function App() {
   const [trueScale, setTrueScale] = useState(false);
   const [satellites, setSatellites] = useState(1);
   const [showLightYears, setShowLightYears] = useState(false);
+  const [inversionMode, setInversionMode] = useState(false);
+  const [cameraMode, setCameraMode] = useState<'auto' | 'birds-eye'>('auto');
 
   // We use a scaled coordinate system. 1 unit = 10 AU.
   // Sun is at x=0. Focal line starts at x=55, goes to x=90.
@@ -33,6 +35,8 @@ function App() {
             trueScale={trueScale}
             satellites={satellites}
             showLightYears={showLightYears}
+            inversionMode={inversionMode}
+            cameraMode={cameraMode}
           />
           
           <OrbitControls 
@@ -40,7 +44,7 @@ function App() {
             target={[40, 0, 0]} 
             enableZoom={true} 
             enablePan={true} 
-            maxPolarAngle={Math.PI / 2} 
+            maxPolarAngle={cameraMode === 'birds-eye' ? 0 : Math.PI / 2} 
             minPolarAngle={0} 
           />
         </Canvas>
@@ -53,6 +57,8 @@ function App() {
         trueScale={trueScale} setTrueScale={setTrueScale}
         satellites={satellites} setSatellites={setSatellites}
         showLightYears={showLightYears} setShowLightYears={setShowLightYears}
+        inversionMode={inversionMode} setInversionMode={setInversionMode}
+        cameraMode={cameraMode} setCameraMode={setCameraMode}
       />
     </>
   );

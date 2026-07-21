@@ -10,15 +10,18 @@ interface SimulationSceneProps {
   trueScale: boolean;
   satellites: number;
   showLightYears: boolean;
+  inversionMode: boolean;
+  cameraMode: 'auto' | 'birds-eye';
 }
 
 const targetsInfo = [
-  { id: 'proxima-b', name: 'Proxima b', distLy: 4.24, color: '#38bdf8', orbitAngle: 0 },
-  { id: 'trappist-1e', name: 'TRAPPIST-1e', distLy: 39.6, color: '#ef4444', orbitAngle: (Math.PI * 2) / 3 },
-  { id: 'kepler-186f', name: 'Kepler-186f', distLy: 582, color: '#10b981', orbitAngle: (Math.PI * 4) / 3 }
+  { id: 'proxima-b', name: 'Proxima b', distLy: 4.24, color: '#38bdf8', orbitAngle: 217 * Math.PI / 180 },
+  { id: 'sirius', name: 'Sirius A', distLy: 8.6, color: '#facc15', orbitAngle: 101 * Math.PI / 180 },
+  { id: 'trappist-1e', name: 'TRAPPIST-1e', distLy: 39.6, color: '#ef4444', orbitAngle: 346 * Math.PI / 180 },
+  { id: 'kepler-186f', name: 'Kepler-186f', distLy: 582, color: '#10b981', orbitAngle: 298 * Math.PI / 180 }
 ];
 
-const SimulationScene: React.FC<SimulationSceneProps> = ({ distance, lateralOffset, target, trueScale, satellites, showLightYears }) => {
+const SimulationScene: React.FC<SimulationSceneProps> = ({ distance, lateralOffset, target, trueScale, satellites, showLightYears, inversionMode, cameraMode }) => {
   const telescopeRef = useRef<THREE.Group>(null);
   const sunGlowRef = useRef<THREE.Mesh>(null);
   const universeRef = useRef<THREE.Group>(null);
@@ -29,13 +32,22 @@ const SimulationScene: React.FC<SimulationSceneProps> = ({ distance, lateralOffs
 
   const activeTargetData = targetsInfo.find(t => t.id === target) || targetsInfo[0];
 
-  const lyScale = trueScale ? 100 : 10;
+  const lyScale = trueScale ? 100 : 1; 
+
+  const getScaledDist = (distLy: number) => {
+    // In true scale: 100 units per ly.
+    // In compact scale: logarithmic compression so they all fit closely in a nice ring.
+    return trueScale ? distLy * 100 : (Math.log10(distLy + 1) * 30 + 30);
+  };
   
   // In True Scale: 1 ly = 100 units. So we convert AU to ly, then multiply by 100.
   // In Compact Scale: 1 unit = 10 AU.
   const auScale = trueScale ? (100 / AU_PER_LY) : 0.1;
   const scaledDistance = distance * auScale;
-  const focalStart = 542 * auScale; 
+  
+  const alienFocalStart = target === 'proxima-b' ? 95 : target === 'sirius' ? 760 : target === 'trappist-1e' ? 85 : 550;
+  const currentFocalStart = inversionMode ? alienFocalStart : 542;
+  const focalStart = currentFocalStart * auScale; 
 
   // If zoomed out past 10 lightyears in trueScale, the inner solar system labels will overlap with the Sun.
   const isExtremeZoom = trueScale && activeTargetData.distLy > 10;
@@ -43,16 +55,21 @@ const SimulationScene: React.FC<SimulationSceneProps> = ({ distance, lateralOffs
 
   // Snap Camera when target or scale changes
   useEffect(() => {
-    const dist = activeTargetData.distLy * lyScale;
+    const dist = getScaledDist(activeTargetData.distLy);
     
-    // The active target is at X = -dist. The sun is at 0. The telescope is at +55.
-    // Midpoint to frame the whole scene:
-    const midX = -dist / 2;
+    // In Normal Mode: The active target is at X = -dist. The sun is at 0. Telescope is at +scaledDistance.
+    // In Inversion Mode: The sun is at X = -dist. The target is at 0. Telescope is at +scaledDistance.
+    // Midpoint to frame the entire span (from -dist to +scaledDistance):
+    let midX = (-dist + scaledDistance) / 2;
     
-    // Zoom out enough to see it all
-    // If distance is huge, pull camera way back on Z and Y
-    const camZ = Math.max(150, dist * 1.2);
-    const camY = Math.max(50, dist * 0.5);
+    let camZ = Math.max(150, dist * 1.2);
+    let camY = Math.max(50, dist * 0.5);
+    
+    if (cameraMode === 'birds-eye') {
+      midX = 0; // Look at center
+      camY = trueScale ? Math.max(1000, dist * 1.2) : 250; // High up
+      camZ = 0.1; // Straight down
+    }
     
     // Animate camera (or snap)
     camera.position.set(midX, camY, camZ);
@@ -67,7 +84,7 @@ const SimulationScene: React.FC<SimulationSceneProps> = ({ distance, lateralOffs
   const lightRays = useMemo(() => {
     const rays = [];
     const numRays = 16;
-    const startX = -(activeTargetData.distLy * lyScale);
+    const startX = -getScaledDist(activeTargetData.distLy);
     
     for (let i = 0; i < numRays; i++) {
       const angle = (i / numRays) * Math.PI * 2;
@@ -100,80 +117,60 @@ const SimulationScene: React.FC<SimulationSceneProps> = ({ distance, lateralOffs
     }
     
     if (universeRef.current) {
-      // Smoothly rotate the universe so the active target aligns with -X axis (angle 0 relative to camera view)
-      // We want the active target's orbitAngle to end up pointing at -X. 
-      // If target is at orbitAngle, we rotate the universe by -orbitAngle.
-      const targetRotation = -activeTargetData.orbitAngle;
+      const targetRotation = inversionMode 
+        ? -activeTargetData.orbitAngle + Math.PI 
+        : -activeTargetData.orbitAngle;
       
-      // Simple lerp for smooth transition
       const currentRotation = universeRef.current.rotation.y;
-      // Handle shortest path rotation (wrap around Math.PI*2)
-      let diff = targetRotation - currentRotation;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      while (diff > Math.PI) diff -= Math.PI * 2;
+      const newRot = THREE.MathUtils.lerp(currentRotation, targetRotation, 0.05);
+      universeRef.current.rotation.y = newRot;
       
-      universeRef.current.rotation.y += diff * 0.05;
+      const targetTranslateX = inversionMode ? -getScaledDist(activeTargetData.distLy) : 0;
+      universeRef.current.position.x = THREE.MathUtils.lerp(universeRef.current.position.x, targetTranslateX, 0.05);
     }
   });
 
   return (
     <group>
-      {/* Background Grid for Scale */}
       <gridHelper args={[trueScale ? 200000 : 2000, trueScale ? 1000 : 20, 0x111111, 0x111111]} position={[0, -20, 0]} />
 
-      {/* The Sun */}
       <group position={[0, 0, 0]}>
-        <Sphere args={[2, 32, 32]}>
-          <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={2} />
+        <Sphere ref={sunGlowRef} args={[3, 32, 32]}>
+          <meshBasicMaterial color={inversionMode ? activeTargetData.color : "#fbbf24"} transparent opacity={0.3} />
         </Sphere>
-        <Sphere ref={sunGlowRef} args={[2.5, 32, 32]}>
-          <meshBasicMaterial color="#f59e0b" transparent opacity={0.3} blending={THREE.AdditiveBlending} depthWrite={false} />
+        <Sphere args={[2.5, 32, 32]}>
+          <meshBasicMaterial color={inversionMode ? activeTargetData.color : "#fbbf24"} />
         </Sphere>
-        <Html center position={[0, 0, 0]}>
-          <div style={{ color: '#fbbf24', whiteSpace: 'nowrap', textShadow: '0 2px 10px rgba(0,0,0,0.8)', fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'center', transform: 'translate(0, -50px)' }}>
-            <div>The Sun</div>
-            <div style={{ width: '1px', height: '40px', background: 'linear-gradient(to bottom, #fbbf24, transparent)', marginTop: '4px' }} />
-          </div>
-        </Html>
-      </group>
-      
-      {/* Earth */}
-      <group position={[-1, 0, 0]}>
-        <Sphere args={[0.3, 16, 16]}>
-          <meshStandardMaterial color="#3b82f6" />
-        </Sphere>
+        
         {showLocalLabels && (
           <Html center position={[0, 0, 0]}>
-            <div style={{ color: '#93c5fd', whiteSpace: 'nowrap', textShadow: '0 2px 10px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column-reverse', alignItems: 'center', transform: 'translate(0, 50px)' }}>
-              <div>Earth (1 AU)</div>
-              <div style={{ width: '1px', height: '40px', background: 'linear-gradient(to top, #93c5fd, transparent)', marginBottom: '4px' }} />
+            <div style={{ color: '#ffffff', whiteSpace: 'nowrap', textShadow: '0 2px 10px rgba(0,0,0,0.8)', fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'center', transform: 'translate(0, -50px)' }}>
+              <div>{inversionMode ? activeTargetData.name : 'The Sun'}</div>
+              <div style={{ width: '1px', height: '40px', background: `linear-gradient(to bottom, ${inversionMode ? activeTargetData.color : '#fbbf24'}, transparent)`, marginTop: '4px' }} />
             </div>
           </Html>
         )}
       </group>
-
-      {/* The rotating universe containing the target exoplanets */}
+      
       <group ref={universeRef}>
         {targetsInfo.map((t, index) => {
-          const dist = t.distLy * lyScale;
-          // Calculate position based on their assigned orbit angle
+          const dist = getScaledDist(t.distLy);
           const x = -dist * Math.cos(t.orbitAngle);
           const z = dist * Math.sin(t.orbitAngle);
           
-          // Make it visible! If true scale, the body should be large enough to see from a distance.
           const radius = trueScale ? Math.max(10, dist / 40) : 3;
           const isActive = t.id === target;
           
           return (
             <group key={t.id} position={[x, 0, z]}>
               <Sphere args={[radius, 32, 32]}>
-                <meshBasicMaterial color={t.color} />
+                <meshBasicMaterial color={inversionMode && isActive ? "#3b82f6" : t.color} />
               </Sphere>
               
               {(!isExtremeZoom || isActive) && (
                 <Html center position={[0, 0, 0]}>
                   <div style={{
-                    color: t.color,
+                    color: inversionMode && isActive ? "#3b82f6" : t.color,
                     textAlign: 'center',
                     fontFamily: 'Inter, sans-serif',
                     whiteSpace: 'nowrap',
@@ -185,11 +182,11 @@ const SimulationScene: React.FC<SimulationSceneProps> = ({ distance, lateralOffs
                     transform: `translate(0, -${60 + index * 40}px)`,
                     opacity: isActive ? 1 : 0.6
                   }}>
-                    <strong style={{ fontSize: '1rem', display: 'block' }}>{t.name}</strong>
+                    <strong style={{ fontSize: '1rem', display: 'block' }}>{inversionMode && isActive ? 'Earth (Target)' : t.name}</strong>
                     <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
                       {showLightYears ? `${t.distLy} ly` : `${Math.round(t.distLy * AU_PER_LY).toLocaleString()} AU`}
                     </span>
-                    <div style={{ width: '1px', height: `${30 + index * 40}px`, background: `linear-gradient(to bottom, ${t.color}, transparent)`, marginTop: '4px' }} />
+                    <div style={{ width: '1px', height: `${30 + index * 40}px`, background: `linear-gradient(to bottom, ${inversionMode && isActive ? '#3b82f6' : t.color}, transparent)`, marginTop: '4px' }} />
                   </div>
                 </Html>
               )}
@@ -198,12 +195,11 @@ const SimulationScene: React.FC<SimulationSceneProps> = ({ distance, lateralOffs
         })}
       </group>
 
-      {/* Light Rays from the active target */}
       {lightRays.map((points, idx) => (
         <Line 
           key={idx}
           points={points}
-          color={activeTargetData.color}
+          color={inversionMode ? "#3b82f6" : activeTargetData.color}
           lineWidth={1.5}
           transparent
           opacity={0.6}
@@ -226,7 +222,7 @@ const SimulationScene: React.FC<SimulationSceneProps> = ({ distance, lateralOffs
       {showLocalLabels && (
         <Html center position={[focalStart, 0, 0]}>
           <div style={{ color: '#ffffff', whiteSpace: 'nowrap', textShadow: '0 2px 10px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', transform: 'translate(0, -80px)' }}>
-            <div>{showLightYears ? `${(542 / AU_PER_LY).toFixed(4)} ly Focal Start` : '542 AU Focal Start'}</div>
+            <div>{showLightYears ? `${(currentFocalStart / AU_PER_LY).toFixed(4)} ly Focal Start` : `${currentFocalStart} AU Focal Start`}</div>
             <div style={{ width: '1px', height: '60px', background: 'linear-gradient(to bottom, #ffffff, transparent)', marginTop: '4px' }} />
           </div>
         </Html>
