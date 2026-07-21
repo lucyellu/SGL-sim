@@ -199,7 +199,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                   }}>
                     <div style={{
                       width: '100px', height: '100px', borderRadius: '50%',
-                      background: inversionMode ? `url(${earthImg})` :
+                      backgroundImage: inversionMode ? `url(${earthImg})` :
                                   target === 'proxima-b' ? `url(${proximaImg})` : 
                                   target === 'trappist-1e' ? `url(${trappistImg})` : 
                                   target === 'sirius' ? 'url(https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Sirius_A_and_B_artwork.jpg/320px-Sirius_A_and_B_artwork.jpg)' :
