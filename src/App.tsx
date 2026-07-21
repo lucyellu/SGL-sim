@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars, PerspectiveCamera } from '@react-three/drei';
 import Dashboard from './components/Dashboard';
@@ -28,16 +28,18 @@ function App() {
           <ambientLight intensity={0.5} />
           <directionalLight position={[10, 20, 10]} intensity={1.5} />
           
-          <SimulationScene 
-            distance={distance} 
-            lateralOffset={lateralOffset} 
-            target={target} 
-            trueScale={trueScale}
-            satellites={satellites}
-            showLightYears={showLightYears}
-            inversionMode={inversionMode}
-            cameraMode={cameraMode}
-          />
+          <Suspense fallback={null}>
+            <SimulationScene 
+              distance={distance} 
+              lateralOffset={lateralOffset} 
+              target={target} 
+              trueScale={trueScale}
+              satellites={satellites}
+              showLightYears={showLightYears}
+              inversionMode={inversionMode}
+              cameraMode={cameraMode}
+            />
+          </Suspense>
           
           <OrbitControls 
             makeDefault

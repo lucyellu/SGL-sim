@@ -1,6 +1,7 @@
 import React, { useRef, useMemo, useEffect } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useThree, useLoader, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import earthImg from '../assets/earth.png';
 import { Sphere, Line, Html } from '@react-three/drei';
 
 interface SimulationSceneProps {
@@ -45,9 +46,10 @@ const SimulationScene: React.FC<SimulationSceneProps> = ({ distance, lateralOffs
   const auScale = trueScale ? (100 / AU_PER_LY) : 0.1;
   const scaledDistance = distance * auScale;
   
-  const alienFocalStart = target === 'proxima-b' ? 95 : target === 'sirius' ? 760 : target === 'trappist-1e' ? 85 : 550;
-  const currentFocalStart = inversionMode ? alienFocalStart : 542;
-  const focalStart = currentFocalStart * auScale; 
+  const earthTexture = useLoader(THREE.TextureLoader, earthImg);
+  
+  const alienFocalStart = activeTargetData.id === 'proxima-b' ? 95 : activeTargetData.id === 'sirius' ? 760 : activeTargetData.id === 'trappist-1e' ? 85 : 550;
+  const focalStart = inversionMode ? alienFocalStart * auScale : 542 * auScale; 
 
   // If zoomed out past 10 lightyears in trueScale, the inner solar system labels will overlap with the Sun.
   const isExtremeZoom = trueScale && activeTargetData.distLy > 10;
@@ -163,9 +165,14 @@ const SimulationScene: React.FC<SimulationSceneProps> = ({ distance, lateralOffs
           
           return (
             <group key={t.id} position={[x, 0, z]}>
-              <Sphere args={[radius, 32, 32]}>
-                <meshBasicMaterial color={inversionMode && isActive ? "#3b82f6" : t.color} />
-              </Sphere>
+              <mesh>
+                <sphereGeometry args={[radius, 32, 32]} />
+                {inversionMode && isActive ? (
+                  <meshStandardMaterial map={earthTexture} />
+                ) : (
+                  <meshBasicMaterial color={t.color} />
+                )}
+              </mesh>
               
               {(!isExtremeZoom || isActive) && (
                 <Html center position={[0, 0, 0]}>
@@ -222,7 +229,7 @@ const SimulationScene: React.FC<SimulationSceneProps> = ({ distance, lateralOffs
       {showLocalLabels && (
         <Html center position={[focalStart, 0, 0]}>
           <div style={{ color: '#ffffff', whiteSpace: 'nowrap', textShadow: '0 2px 10px rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', transform: 'translate(0, -80px)' }}>
-            <div>{showLightYears ? `${(currentFocalStart / AU_PER_LY).toFixed(4)} ly Focal Start` : `${currentFocalStart} AU Focal Start`}</div>
+            <div>{showLightYears ? `${(focalStart / auScale / AU_PER_LY).toFixed(4)} ly Focal Start` : `${(focalStart / auScale).toFixed(0)} AU Focal Start`}</div>
             <div style={{ width: '1px', height: '60px', background: 'linear-gradient(to bottom, #ffffff, transparent)', marginTop: '4px' }} />
           </div>
         </Html>
